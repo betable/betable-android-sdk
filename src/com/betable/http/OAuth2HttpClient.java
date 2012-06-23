@@ -33,7 +33,8 @@ public class OAuth2HttpClient {
     protected static final String TAG = OAuth2HttpClient.class.getName();
 
     public static final Header CONTENT_TYPE_HEADER = new BasicHeader(
-            "Content-Type", "application/json");
+
+    "content-type", "application/json");
     public static final int REQUEST_RESULT = 0x1, REQUEST_ERRED = 0x2;
 
     public static int CONNECTION_TIMEOUT = 20 * 1000,
@@ -111,6 +112,7 @@ public class OAuth2HttpClient {
         @Override
         public HttpResponse call() throws Exception {
             Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+            this.request.setHeader(CONTENT_TYPE_HEADER);
             return OAuth2HttpClient.this.client.execute(this.request);
         }
 
