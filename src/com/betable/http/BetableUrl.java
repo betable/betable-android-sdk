@@ -32,8 +32,7 @@ public enum BetableUrl {
     }
 
     public String getAsString(String urlParam, List<BasicNameValuePair> params) {
-        return String.format(Locale.getDefault(), urlMap.get(this), urlParam)
-                + URLEncodedUtils.format(params, ENCODING);
+        return this.getAsString(new String[] { urlParam }, params);
     }
 
     public URI get(Object[] urlParams, List<BasicNameValuePair> params) {
@@ -43,7 +42,7 @@ public enum BetableUrl {
     public String getAsString(Object[] urlParams,
             List<BasicNameValuePair> params) {
         return String.format(Locale.getDefault(), urlMap.get(this), urlParams)
-                + URLEncodedUtils.format(params, ENCODING);
+                + "?" + URLEncodedUtils.format(params, ENCODING);
     }
 
 }

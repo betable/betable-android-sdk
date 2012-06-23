@@ -7,13 +7,16 @@ import java.util.UUID;
 import org.apache.http.message.BasicNameValuePair;
 
 import android.app.Activity;
-import android.app.DialogFragment;
 import android.app.ProgressDialog;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.support.v4.app.DialogFragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -28,6 +31,13 @@ public class BetableLogin extends DialogFragment {
     BetableLoginListener listener;
     ProgressDialog loadingDialog;
     WebView browser;
+    String clientId;
+    String redirectUri;
+
+    public BetableLogin(String clientId, String redirectUri) {
+        this.clientId = clientId;
+        this.redirectUri = redirectUri;
+    }
 
     @Override
     public void onAttach(Activity activity) {
@@ -38,6 +48,7 @@ public class BetableLogin extends DialogFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        this.setStyle(STYLE_NO_FRAME, android.R.style.Theme_Black_NoTitleBar);
     }
 
     @Override
@@ -58,7 +69,10 @@ public class BetableLogin extends DialogFragment {
         queryParams.add(new BasicNameValuePair("state", UUID.randomUUID()
                 .toString()));
         queryParams.add(new BasicNameValuePair("response", "code"));
-        return null;
+        queryParams.add(new BasicNameValuePair("client_id", this.clientId));
+        queryParams
+                .add(new BasicNameValuePair("redirect_uri", this.redirectUri));
+        return queryParams;
     }
 
     private void initializeBrowser() {
@@ -68,9 +82,12 @@ public class BetableLogin extends DialogFragment {
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                BetableLogin.this.loadingDialog = ProgressDialog.show(
-                        BetableLogin.this.getActivity(), "Betable",
-                        "Please wait...");
+                Log.d(TAG, "Started loading " + url);
+                /*
+                 * BetableLogin.this.loadingDialog = ProgressDialog.show(
+                 * BetableLogin.this.getActivity(), "Betable",
+                 * "Please wait...");
+                 */
                 int start = url.indexOf(ACCESS_TOKEN_FRAGMENT);
                 if (start > -1) {
                     String accessToken = url.substring(start
@@ -81,7 +98,10 @@ public class BetableLogin extends DialogFragment {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                BetableLogin.this.loadingDialog.dismiss();
+                Log.d(TAG, "Finished loading " + url);
+                /*
+                 * BetableLogin.this.loadingDialog.dismiss();
+                 */
             }
 
             @Override
@@ -90,6 +110,15 @@ public class BetableLogin extends DialogFragment {
                 return true;
             }
 
+        });
+
+        this.browser.setWebChromeClient(new WebChromeClient() {
+
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                Log.d(TAG, message.message());
+                return true;
+            }
         });
     }
 
