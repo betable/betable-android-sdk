@@ -28,13 +28,15 @@ import org.apache.http.params.HttpProtocolParams;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Process;
+import android.util.Log;
 
 public class OAuth2HttpClient {
     protected static final String TAG = OAuth2HttpClient.class.getName();
 
-    public static final Header CONTENT_TYPE_HEADER = new BasicHeader(
-
-    "content-type", "application/json");
+    public static final Header JSON_CONTENT_TYPE_HEADER = new BasicHeader(
+            "content-type", "application/json");
+    public static final Header FORM_CONTENT_TYPE_HEADER = new BasicHeader(
+            "content-type", "application/x-www-form-urlencoded");
     public static final int REQUEST_RESULT = 0x1, REQUEST_ERRED = 0x2;
 
     public static int CONNECTION_TIMEOUT = 20 * 1000,
@@ -112,10 +114,10 @@ public class OAuth2HttpClient {
         @Override
         public HttpResponse call() throws Exception {
             Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-            this.request.setHeader(CONTENT_TYPE_HEADER);
+            Log.d(TAG, this.request.getMethod() + " "
+                    + this.request.getURI().toString());
             return OAuth2HttpClient.this.client.execute(this.request);
         }
-
     }
 
     static class BetableThreadFactory implements ThreadFactory {
@@ -137,17 +139,24 @@ public class OAuth2HttpClient {
 
         @Override
         protected void done() {
-            if (this.isCancelled())
-                return;
             HttpResponse response = null;
             int responseType = REQUEST_RESULT;
+            String errorString = null;
             try {
                 response = this.get();
             } catch (InterruptedException e) {
-                e.printStackTrace();
-                responseType = REQUEST_ERRED;
+                errorString = e.getMessage();
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                errorString = e.getMessage();
+            } finally {
+                if (errorString != null) {
+                    Log.e(TAG, errorString);
+                    responseType = REQUEST_ERRED;
+                }
+            }
+            Log.d(TAG, "status code: "
+                    + response.getStatusLine().getStatusCode());
+            if (response.getStatusLine().getStatusCode() >= 400) {
                 responseType = REQUEST_ERRED;
             }
             Message message = this.handler

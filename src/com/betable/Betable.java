@@ -3,9 +3,14 @@ package com.betable;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.auth.AuthenticationException;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONObject;
 
@@ -22,7 +27,7 @@ public class Betable {
         ALL, REAL, SANDBOX
     }
 
-    private final OAuth2HttpClient client;
+    private static final OAuth2HttpClient CLIENT = new OAuth2HttpClient();
 
     private Economy economy = Economy.ALL;
     private ArrayList<BasicNameValuePair> params;
@@ -35,7 +40,6 @@ public class Betable {
     public Betable(String accessToken) {
         this.accessToken = accessToken;
         this.initializeParams();
-        this.client = new OAuth2HttpClient();
     }
 
     // getters/setters
@@ -72,13 +76,13 @@ public class Betable {
     public void getUser(Handler handler) {
         HttpGet get = new HttpGet(BetableUrl.USER_URL.get("",
                 (List<BasicNameValuePair>) this.params.clone()));
-        this.client.execute(get, handler);
+        CLIENT.execute(get, handler);
     }
 
     public void getUserWallet(Handler handler) {
         HttpGet get = new HttpGet(BetableUrl.WALLET_URL.get("",
                 (List<BasicNameValuePair>) this.params.clone()));
-        this.client.execute(get, handler);
+        CLIENT.execute(get, handler);
     }
 
     public void bet(JSONObject body, Handler handler) {
@@ -90,17 +94,47 @@ public class Betable {
         HttpPost post = new HttpPost(BetableUrl.BET_URL.get(gameId,
                 (List<BasicNameValuePair>) this.params.clone()));
         post.setEntity(new ByteArrayEntity(body.toString().getBytes()));
-        post.addHeader(OAuth2HttpClient.CONTENT_TYPE_HEADER);
-        this.client.execute(post, handler);
+        post.addHeader(OAuth2HttpClient.JSON_CONTENT_TYPE_HEADER);
+        CLIENT.execute(post, handler);
     }
 
     public void canIGamble(Location location, Handler handler) {
-        HttpGet get = new HttpGet(BetableUrl.GAMBLE_URL.get("",
+        HttpGet get = new HttpGet(BetableUrl.CAN_I_GAMBLE_URL.get("",
                 (List<BasicNameValuePair>) this.params.clone()));
-        this.client.execute(get, handler);
+        CLIENT.execute(get, handler);
+    }
+
+    // static actions
+
+    public static void acquireAccessToken(String clientId, String clientSecret,
+            String code, String redirectUri, Handler handler)
+            throws AuthenticationException {
+        HttpPost post = new HttpPost(BetableUrl.TOKEN_URL.get("", null));
+        post.setEntity(createAccessTokenAcquisitionEntity(code, redirectUri));
+        post.addHeader(OAuth2HttpClient.FORM_CONTENT_TYPE_HEADER);
+        post.addHeader(new BasicScheme().authenticate(
+                new UsernamePasswordCredentials(clientId, clientSecret), post));
+        CLIENT.execute(post, handler);
     }
 
     // helpers
+
+    private static HttpEntity createAccessTokenAcquisitionEntity(String code,
+            String redirectUri) {
+        String params = URLEncodedUtils.format(
+                createAccessTokenAcquisitionParams(code, redirectUri),
+                BetableUrl.ENCODING);
+        return new ByteArrayEntity(params.getBytes());
+    }
+
+    private static List<BasicNameValuePair> createAccessTokenAcquisitionParams(
+            String code, String redirectUri) {
+        List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+        params.add(new BasicNameValuePair("code", code));
+        params.add(new BasicNameValuePair("grant_type", "authorization_code"));
+        params.add(new BasicNameValuePair("redirect_uri", redirectUri));
+        return params;
+    }
 
     private void initializeParams() {
         this.params = new ArrayList<BasicNameValuePair>();
