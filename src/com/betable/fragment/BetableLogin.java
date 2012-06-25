@@ -38,25 +38,27 @@ public class BetableLogin extends DialogFragment {
     private static final String TAG = "BetableLogin";
 
     private static final String CODE_KEY = "code", ERROR_KEY = "error",
-            ACCESS_TOKEN_KEY = "access_token";
+            ACCESS_TOKEN_KEY = "access_token", CLIENT_ID_KEY = "client_id",
+            CLIENT_SECRET_KEY = "client_secret",
+            REDIRECT_URI_KEY = "redirect_uri", STATE_KEY = "state",
+            RESPONSE_KEY = "response", RESPONSE_VALUE = "code";
 
     BetableLoginListener listener;
     ProgressDialog loadingDialog;
-    String clientId;
-    String clientSecret;
-    String redirectUri;
     WebView browser;
 
-    public BetableLogin(String clientId, String clientSecret, String redirectUri) {
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
-        this.redirectUri = redirectUri;
+    public static BetableLogin newInstance(String clientId,
+            String clientSecret, String redirectUri) {
+        BetableLogin login = new BetableLogin();
+        login.setArguments(createInitialArguments(clientId, clientSecret,
+                redirectUri));
+        return login;
     }
 
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
-        this.setActivityAsListener(activity);
+        this.ensureActivityImplementsListener(activity);
     }
 
     @Override
@@ -76,16 +78,33 @@ public class BetableLogin extends DialogFragment {
         return this.browser;
     }
 
+    // actions
+
+    public void setListener(BetableLoginListener listener) {
+        this.listener = listener;
+    }
+
     // helpers
+
+    private static Bundle createInitialArguments(String clientId,
+            String clientSecret, String redirectUri) {
+        Bundle arguments = new Bundle();
+        arguments.putString(CLIENT_ID_KEY, clientId);
+        arguments.putString(CLIENT_SECRET_KEY, clientSecret);
+        arguments.putString(REDIRECT_URI_KEY, redirectUri);
+        arguments.putString(STATE_KEY, UUID.randomUUID().toString());
+        return arguments;
+    }
 
     private List<BasicNameValuePair> createAuthQueryParams() {
         List<BasicNameValuePair> queryParams = new ArrayList<BasicNameValuePair>();
-        queryParams.add(new BasicNameValuePair("state", UUID.randomUUID()
-                .toString()));
-        queryParams.add(new BasicNameValuePair("response", "code"));
-        queryParams.add(new BasicNameValuePair("client_id", this.clientId));
-        queryParams
-                .add(new BasicNameValuePair("redirect_uri", this.redirectUri));
+        queryParams.add(new BasicNameValuePair(STATE_KEY, this.getArguments()
+                .getString(STATE_KEY)));
+        queryParams.add(new BasicNameValuePair(RESPONSE_KEY, RESPONSE_VALUE));
+        queryParams.add(new BasicNameValuePair(CLIENT_ID_KEY, this
+                .getArguments().getString(CLIENT_ID_KEY)));
+        queryParams.add(new BasicNameValuePair(REDIRECT_URI_KEY, this
+                .getArguments().getString(REDIRECT_URI_KEY)));
         return queryParams;
     }
 
@@ -120,16 +139,25 @@ public class BetableLogin extends DialogFragment {
             }
 
             private void handleAccessGranted(Uri uri, WebView view) {
+                if (!doesStateMatch(uri)) {
+                    Log.e(TAG,
+                            "State did not match, possible CSRF. Returning...");
+                    return;
+                }
                 String code = uri.getQueryParameter(CODE_KEY);
                 view.stopLoading();
                 BetableLogin.this.loadingDialog = ProgressDialog.show(
                         BetableLogin.this.getActivity(), "Betable",
                         "Please wait...");
                 try {
-                    Betable.acquireAccessToken(BetableLogin.this.clientId,
-                            BetableLogin.this.clientSecret, code,
-                            BetableLogin.this.redirectUri,
-                            new AccessTokenHandler());
+                    Betable.acquireAccessToken(
+                            BetableLogin.this.getArguments().getString(
+                                    CLIENT_ID_KEY),
+                            BetableLogin.this.getArguments().getString(
+                                    CLIENT_SECRET_KEY),
+                            code,
+                            BetableLogin.this.getArguments().getString(
+                                    REDIRECT_URI_KEY), new AccessTokenHandler());
                 } catch (AuthenticationException e) {
                     Log.e(TAG, e.getMessage());
                     throw new IllegalStateException(
@@ -137,16 +165,20 @@ public class BetableLogin extends DialogFragment {
                 }
             }
 
+            private boolean doesStateMatch(Uri uri) {
+                return BetableLogin.this.getArguments().getString(STATE_KEY)
+                        .equals(uri.getQueryParameter(STATE_KEY));
+            }
+
         });
     }
 
-    private void setActivityAsListener(Activity activity) {
+    private void ensureActivityImplementsListener(Activity activity) {
         if (!BetableLoginListener.class.isInstance(activity)) {
             throw new IllegalStateException("Activities implementing " + TAG
                     + " must implement the " + TAG
                     + ".BetableLoginListener interface.");
         }
-        this.listener = (BetableLoginListener) activity;
     }
 
     private String parseAccessToken(HttpEntity entity) throws IOException,
@@ -187,11 +219,10 @@ public class BetableLogin extends DialogFragment {
         } finally {
             if (errorString != null) {
                 Log.e(TAG, errorString);
+                responseBody = errorString;
             }
         }
-        BetableLogin.this.listener
-                .onFailedLogin(responseBody == null ? errorString
-                        : responseBody);
+        BetableLogin.this.listener.onFailedLogin(responseBody);
     }
 
     // inner-classes
