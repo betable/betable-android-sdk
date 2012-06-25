@@ -7,12 +7,12 @@ import java.util.UUID;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
 import org.apache.http.ParseException;
 import org.apache.http.auth.AuthenticationException;
-import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -100,24 +100,9 @@ public class BetableLogin extends DialogFragment {
                 Uri uri = Uri.parse(url);
 
                 if (uri.getQueryParameter(ERROR_KEY) != null) {
-                    BetableLogin.this.listener.onFailedLogin(uri
-                            .getQueryParameter(ERROR_KEY));
-                    return;
+                    this.handleAccessDenied(uri);
                 } else if (uri.getQueryParameter(CODE_KEY) != null) {
-                    String code = uri.getQueryParameter(CODE_KEY);
-                    view.stopLoading();
-                    BetableLogin.this.loadingDialog = ProgressDialog.show(
-                            BetableLogin.this.getActivity(), "Betable",
-                            "Please wait...");
-                    try {
-                        Betable.acquireAccessToken(BetableLogin.this.clientId,
-                                BetableLogin.this.clientSecret, code, url,
-                                new AccessTokenHandler());
-                    } catch (AuthenticationException e) {
-                        Log.e(TAG, e.getMessage());
-                        throw new IllegalStateException(
-                                "Client key/secret are invalid.", e);
-                    }
+                    this.handleAccessGranted(uri, view);
                 }
             }
 
@@ -125,6 +110,31 @@ public class BetableLogin extends DialogFragment {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 view.loadUrl(url);
                 return true;
+            }
+
+            // helpers
+
+            private void handleAccessDenied(Uri uri) {
+                BetableLogin.this.listener.onFailedLogin(uri
+                        .getQueryParameter(ERROR_KEY));
+            }
+
+            private void handleAccessGranted(Uri uri, WebView view) {
+                String code = uri.getQueryParameter(CODE_KEY);
+                view.stopLoading();
+                BetableLogin.this.loadingDialog = ProgressDialog.show(
+                        BetableLogin.this.getActivity(), "Betable",
+                        "Please wait...");
+                try {
+                    Betable.acquireAccessToken(BetableLogin.this.clientId,
+                            BetableLogin.this.clientSecret, code,
+                            BetableLogin.this.redirectUri,
+                            new AccessTokenHandler());
+                } catch (AuthenticationException e) {
+                    Log.e(TAG, e.getMessage());
+                    throw new IllegalStateException(
+                            "Client key/secret are invalid.", e);
+                }
             }
 
         });
@@ -139,16 +149,49 @@ public class BetableLogin extends DialogFragment {
         this.listener = (BetableLoginListener) activity;
     }
 
-    private String parseAccessToken(HttpEntity entity) throws IOException {
-        List<NameValuePair> params = URLEncodedUtils.parse(entity);
-        String accessToken = null;
-        for (NameValuePair param : params) {
-            if (param.getName().equals(ACCESS_TOKEN_KEY)) {
-                accessToken = param.getValue();
-                break;
+    private String parseAccessToken(HttpEntity entity) throws IOException,
+            ParseException, JSONException {
+        JSONObject responseBody = new JSONObject(EntityUtils.toString(entity,
+                BetableUrl.ENCODING));
+        return responseBody.getString(ACCESS_TOKEN_KEY);
+    }
+
+    private void handleSuccessfulRequest(HttpResponse response) {
+        String errorString = null;
+        try {
+            BetableLogin.this.listener.onSuccessfulLogin(BetableLogin.this
+                    .parseAccessToken(response.getEntity()));
+        } catch (IOException e) {
+            errorString = e.getMessage();
+        } catch (JSONException e) {
+            errorString = e.getMessage();
+        } catch (ParseException e) {
+            errorString = e.getMessage();
+        } finally {
+            if (errorString != null) {
+                Log.e(TAG, errorString);
+                BetableLogin.this.listener.onFailedLogin(errorString);
             }
         }
-        return accessToken;
+    }
+
+    private void handleFailedRequest(HttpResponse response) {
+        String responseBody = null;
+        String errorString = null;
+        try {
+            responseBody = EntityUtils.toString(response.getEntity());
+        } catch (ParseException e) {
+            errorString = e.getMessage();
+        } catch (IOException e) {
+            errorString = e.getMessage();
+        } finally {
+            if (errorString != null) {
+                Log.e(TAG, errorString);
+            }
+        }
+        BetableLogin.this.listener
+                .onFailedLogin(responseBody == null ? errorString
+                        : responseBody);
     }
 
     // inner-classes
@@ -159,41 +202,14 @@ public class BetableLogin extends DialogFragment {
         public void handleMessage(Message message) {
             int resultType = message.what;
             HttpResponse response = (HttpResponse) message.obj;
-            String errorString = null;
 
             switch (resultType) {
-            case OAuth2HttpClient.REQUEST_RESULT:
-                try {
-                    BetableLogin.this.listener
-                            .onSuccessfulLogin(BetableLogin.this
-                                    .parseAccessToken(response.getEntity()));
+                case OAuth2HttpClient.REQUEST_RESULT:
+                    BetableLogin.this.handleSuccessfulRequest(response);
                     break;
-                } catch (IOException e) {
-                    errorString = e.getMessage();
-                    Log.e(TAG, errorString);
-                }
-            case OAuth2HttpClient.REQUEST_ERRED:
-                if (errorString != null) {
-                    BetableLogin.this.listener.onFailedLogin(errorString);
-                } else {
-                    String responseBody = null;
-                    try {
-                        responseBody = EntityUtils.toString(response
-                                .getEntity());
-                    } catch (ParseException e) {
-                        errorString = e.getMessage();
-                    } catch (IOException e) {
-                        errorString = e.getMessage();
-                    } finally {
-                        if (errorString != null) {
-                            Log.e(TAG, errorString);
-                        }
-                    }
-                    BetableLogin.this.listener
-                            .onFailedLogin(responseBody == null ? errorString
-                                    : responseBody);
-                }
-                break;
+                case OAuth2HttpClient.REQUEST_ERRED:
+                    BetableLogin.this.handleFailedRequest(response);
+                    break;
             }
             if (BetableLogin.this.loadingDialog.isShowing())
                 BetableLogin.this.loadingDialog.dismiss();
