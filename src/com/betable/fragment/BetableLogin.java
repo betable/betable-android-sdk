@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import android.content.Context;
+import android.support.v4.app.*;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.ParseException;
@@ -15,13 +17,11 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.Activity;
-import android.app.ProgressDialog;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.v4.app.DialogFragment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -31,10 +31,11 @@ import android.webkit.WebViewClient;
 
 import com.betable.Betable;
 import com.betable.R;
-import com.betable.http.BetableUrl;
 import com.betable.http.OAuth2HttpClient;
 
-public class BetableLogin extends DialogFragment {
+import static com.betable.http.BetableUrl.*;
+
+public class BetableLogin extends Fragment {
     private static final String TAG = "BetableLogin";
 
     private static final String CODE_KEY = "code", ERROR_KEY = "error",
@@ -44,8 +45,6 @@ public class BetableLogin extends DialogFragment {
             RESPONSE_KEY = "response", RESPONSE_VALUE = "code";
 
     BetableLoginListener listener;
-    ProgressDialog loadingDialog;
-    WebView browser;
 
     public static BetableLogin newInstance(String clientId,
             String clientSecret, String redirectUri) {
@@ -58,33 +57,63 @@ public class BetableLogin extends DialogFragment {
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
-        this.ensureActivityImplementsListener(activity);
+        this.setActivityAsListener(activity);
     }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        this.setStyle(STYLE_NO_FRAME, android.R.style.Theme_Black_NoTitleBar);
+        this.setRetainInstance(true);
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
-        this.browser = (WebView) inflater.inflate(R.layout.betable_login,
-                container, false);
-        this.initializeBrowser();
-        this.browser.loadUrl(BetableUrl.AUTHORIZATION_URL.getAsString("",
-                this.createAuthQueryParams()));
-        return this.browser;
+        return inflater.inflate(R.layout.betable_login, container, false);
+    }
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+        WebView browser = this.initializeBrowser();
+
+        if (savedInstanceState != null) {
+            Log.d(TAG, "Restoring state...");
+            browser.restoreState(savedInstanceState);
+        } else {
+            Log.d(TAG, "Loading url...");
+            browser.loadUrl(AUTHORIZATION_URL.getAsString("", this.createAuthQueryParams()));
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        super.onSaveInstanceState(savedInstanceState);
+        WebView browser = this.getBrowser();
+        if (browser != null) {
+            browser.saveState(savedInstanceState);
+        }
     }
 
     // actions
 
-    public void setListener(BetableLoginListener listener) {
-        this.listener = listener;
+    public void show(FragmentManager manager, int layoutId, String tag) {
+        manager.beginTransaction().replace(layoutId, this, tag).commit();
+    }
+
+    public void dismiss() {
+        this.getActivity().getSupportFragmentManager().beginTransaction().remove(this).commit();
     }
 
     // helpers
+
+    private WebView getBrowser() {
+        return (WebView) this.getView().findViewById(R.id.browser);
+    }
+
+    private String getArgument(String key) {
+        return this.getArguments().getString(key);
+    }
 
     private static Bundle createInitialArguments(String clientId,
             String clientSecret, String redirectUri) {
@@ -98,20 +127,22 @@ public class BetableLogin extends DialogFragment {
 
     private List<BasicNameValuePair> createAuthQueryParams() {
         List<BasicNameValuePair> queryParams = new ArrayList<BasicNameValuePair>();
-        queryParams.add(new BasicNameValuePair(STATE_KEY, this.getArguments()
-                .getString(STATE_KEY)));
+        queryParams.add(new BasicNameValuePair(STATE_KEY, this
+                .getArgument(STATE_KEY)));
         queryParams.add(new BasicNameValuePair(RESPONSE_KEY, RESPONSE_VALUE));
         queryParams.add(new BasicNameValuePair(CLIENT_ID_KEY, this
-                .getArguments().getString(CLIENT_ID_KEY)));
+                .getArgument(CLIENT_ID_KEY)));
         queryParams.add(new BasicNameValuePair(REDIRECT_URI_KEY, this
-                .getArguments().getString(REDIRECT_URI_KEY)));
+                .getArgument(REDIRECT_URI_KEY)));
         return queryParams;
     }
 
-    private void initializeBrowser() {
-        this.browser.getSettings().setJavaScriptEnabled(true);
+    private WebView initializeBrowser() {
+        Log.d(TAG, "BetableLogin.initializeBrowser");
+        WebView browser = this.getBrowser();
+        browser.getSettings().setJavaScriptEnabled(true);
 
-        this.browser.setWebViewClient(new WebViewClient() {
+        browser.setWebViewClient(new WebViewClient() {
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -140,41 +171,40 @@ public class BetableLogin extends DialogFragment {
 
             private void handleAccessGranted(Uri uri, WebView view) {
                 if (!doesStateMatch(uri)) {
-                    Log.e(TAG,
-                            "State did not match, possible CSRF. Returning...");
+                    Log.e(TAG, "State did not match, possible CSRF attack. Returning.");
+                    BetableLogin.this.listener.onFailedLogin("State did not match, possible CSRF attack.");
                     return;
                 }
                 String code = uri.getQueryParameter(CODE_KEY);
                 view.stopLoading();
-                BetableLogin.this.loadingDialog = ProgressDialog.show(
-                        BetableLogin.this.getActivity(), "Betable",
-                        "Please wait...");
                 try {
                     Betable.acquireAccessToken(
-                            BetableLogin.this.getArguments().getString(
-                                    CLIENT_ID_KEY),
-                            BetableLogin.this.getArguments().getString(
-                                    CLIENT_SECRET_KEY),
+                            BetableLogin.this.getArgument(CLIENT_ID_KEY),
+                            BetableLogin.this.getArgument(CLIENT_SECRET_KEY),
                             code,
-                            BetableLogin.this.getArguments().getString(
-                                    REDIRECT_URI_KEY), new AccessTokenHandler());
+                            BetableLogin.this.getArgument(REDIRECT_URI_KEY),
+                            BetableLogin.this.accessTokenHandler);
                 } catch (AuthenticationException e) {
                     Log.e(TAG, e.getMessage());
-                    throw new IllegalStateException(
-                            "Client key/secret are invalid.", e);
+                    throw new IllegalStateException("Credentials are invalid.",
+                            e);
                 }
             }
 
             private boolean doesStateMatch(Uri uri) {
-                return BetableLogin.this.getArguments().getString(STATE_KEY)
-                        .equals(uri.getQueryParameter(STATE_KEY));
+                return BetableLogin.this.getArgument(STATE_KEY).equals(
+                        uri.getQueryParameter(STATE_KEY));
             }
 
         });
+        return browser;
     }
 
-    private void ensureActivityImplementsListener(Activity activity) {
-        if (!BetableLoginListener.class.isInstance(activity)) {
+    private void setActivityAsListener(Activity activity) {
+        try {
+            this.listener = (BetableLoginListener) activity;
+        } catch (ClassCastException e) {
+            Log.e(TAG, e.getMessage());
             throw new IllegalStateException("Activities implementing " + TAG
                     + " must implement the " + TAG
                     + ".BetableLoginListener interface.");
@@ -184,7 +214,7 @@ public class BetableLogin extends DialogFragment {
     private String parseAccessToken(HttpEntity entity) throws IOException,
             ParseException, JSONException {
         JSONObject responseBody = new JSONObject(EntityUtils.toString(entity,
-                BetableUrl.ENCODING));
+                ENCODING));
         return responseBody.getString(ACCESS_TOKEN_KEY);
     }
 
@@ -227,7 +257,7 @@ public class BetableLogin extends DialogFragment {
 
     // inner-classes
 
-    class AccessTokenHandler extends Handler {
+    Handler accessTokenHandler = new Handler() {
 
         @Override
         public void handleMessage(Message message) {
@@ -242,10 +272,8 @@ public class BetableLogin extends DialogFragment {
                     BetableLogin.this.handleFailedRequest(response);
                     break;
             }
-            if (BetableLogin.this.loadingDialog.isShowing())
-                BetableLogin.this.loadingDialog.dismiss();
         }
-    }
+    };
 
     // interfaces
 
