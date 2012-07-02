@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import android.content.Context;
 import android.support.v4.app.*;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -44,7 +43,9 @@ public class BetableLogin extends Fragment {
             REDIRECT_URI_KEY = "redirect_uri", STATE_KEY = "state",
             RESPONSE_KEY = "response", RESPONSE_VALUE = "code";
 
+    boolean pageLoaded = false;
     BetableLoginListener listener;
+    WebView browser;
 
     public static BetableLogin newInstance(String clientId,
             String clientSecret, String redirectUri) {
@@ -69,36 +70,39 @@ public class BetableLogin extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.betable_login, container, false);
+        if (this.browser == null) {
+            this.browser = (WebView) inflater.inflate(R.layout.betable_login, container, false);
+        } else {
+            ((ViewGroup)this.browser.getParent()).removeView(this.browser);
+        }
+        return this.browser;
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        WebView browser = this.initializeBrowser();
 
-        if (savedInstanceState != null) {
-            Log.d(TAG, "Restoring state...");
-            browser.restoreState(savedInstanceState);
+        if (!this.pageLoaded) {
+            this.initializeBrowser();
+            this.browser.loadUrl(AUTHORIZATION_URL.getAsString("", this.createAuthQueryParams()));
+            this.pageLoaded = true;
         } else {
-            Log.d(TAG, "Loading url...");
-            browser.loadUrl(AUTHORIZATION_URL.getAsString("", this.createAuthQueryParams()));
+            this.browser.restoreState(savedInstanceState);
         }
     }
 
     @Override
     public void onSaveInstanceState(Bundle savedInstanceState) {
         super.onSaveInstanceState(savedInstanceState);
-        WebView browser = this.getBrowser();
-        if (browser != null) {
-            browser.saveState(savedInstanceState);
+        if (this.browser != null) {
+            this.browser.saveState(savedInstanceState);
         }
     }
 
     // actions
 
     public void show(FragmentManager manager, int layoutId, String tag) {
-        manager.beginTransaction().replace(layoutId, this, tag).commit();
+        manager.beginTransaction().add(layoutId, this, tag).commit();
     }
 
     public void dismiss() {
@@ -106,10 +110,6 @@ public class BetableLogin extends Fragment {
     }
 
     // helpers
-
-    private WebView getBrowser() {
-        return (WebView) this.getView().findViewById(R.id.browser);
-    }
 
     private String getArgument(String key) {
         return this.getArguments().getString(key);
@@ -137,12 +137,10 @@ public class BetableLogin extends Fragment {
         return queryParams;
     }
 
-    private WebView initializeBrowser() {
-        Log.d(TAG, "BetableLogin.initializeBrowser");
-        WebView browser = this.getBrowser();
-        browser.getSettings().setJavaScriptEnabled(true);
+    private void initializeBrowser() {
+        this.browser.getSettings().setJavaScriptEnabled(true);
 
-        browser.setWebViewClient(new WebViewClient() {
+        this.browser.setWebViewClient(new WebViewClient() {
 
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -197,7 +195,6 @@ public class BetableLogin extends Fragment {
             }
 
         });
-        return browser;
     }
 
     private void setActivityAsListener(Activity activity) {
