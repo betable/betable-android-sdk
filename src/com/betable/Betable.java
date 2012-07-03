@@ -34,8 +34,8 @@ public class Betable {
     private String accessToken;
     private String gameId;
 
-    public static final String ACCESS_TOKEN_KEY = "ACCESS_TOKEN",
-            GAME_ID_KEY = "GAME_ID";
+    public static final String ACCESS_TOKEN_KEY = "access_token",
+            GAME_ID_KEY = "game_id";
 
     public Betable(String accessToken) {
         this.accessToken = accessToken;
@@ -74,14 +74,12 @@ public class Betable {
     // requests
 
     public void getUser(Handler handler) {
-        HttpGet get = new HttpGet(BetableUrl.USER_URL.get("",
-                (List<BasicNameValuePair>) this.params.clone()));
+        HttpGet get = new HttpGet(BetableUrl.USER_URL.get("", (List<BasicNameValuePair>) this.params.clone()));
         CLIENT.execute(get, handler);
     }
 
     public void getUserWallet(Handler handler) {
-        HttpGet get = new HttpGet(BetableUrl.WALLET_URL.get("",
-                (List<BasicNameValuePair>) this.params.clone()));
+        HttpGet get = new HttpGet(BetableUrl.WALLET_URL.get("", (List<BasicNameValuePair>) this.params.clone()));
         CLIENT.execute(get, handler);
     }
 
@@ -91,29 +89,27 @@ public class Betable {
 
     public void bet(String gameId, JSONObject body, Handler handler) {
         this.checkGameId(gameId);
-        HttpPost post = new HttpPost(BetableUrl.BET_URL.get(gameId,
-                (List<BasicNameValuePair>) this.params.clone()));
+        HttpPost post = new HttpPost(BetableUrl.BET_URL.get(gameId, (List<BasicNameValuePair>) this.params.clone()));
         post.setEntity(new ByteArrayEntity(body.toString().getBytes()));
         post.addHeader(OAuth2HttpClient.JSON_CONTENT_TYPE_HEADER);
         CLIENT.execute(post, handler);
     }
 
     public void canIGamble(Location location, Handler handler) {
-        HttpGet get = new HttpGet(BetableUrl.CAN_I_GAMBLE_URL.get("",
+        HttpGet get = new HttpGet(BetableUrl.CAN_I_GAMBLE_URL.get(
+                new String[] { String.valueOf(location.getLatitude()), String.valueOf(location.getLongitude()) },
                 (List<BasicNameValuePair>) this.params.clone()));
         CLIENT.execute(get, handler);
     }
 
     // static actions
 
-    public static void acquireAccessToken(String clientId, String clientSecret,
-            String code, String redirectUri, Handler handler)
-            throws AuthenticationException {
+    public static void acquireAccessToken(String clientId, String clientSecret, String code,
+                                          String redirectUri, Handler handler) throws AuthenticationException {
         HttpPost post = new HttpPost(BetableUrl.TOKEN_URL.get("", null));
         post.setEntity(createAccessTokenAcquisitionEntity(code, redirectUri));
         post.addHeader(OAuth2HttpClient.FORM_CONTENT_TYPE_HEADER);
-        post.addHeader(new BasicScheme().authenticate(
-                new UsernamePasswordCredentials(clientId, clientSecret), post));
+        post.addHeader(new BasicScheme().authenticate(new UsernamePasswordCredentials(clientId, clientSecret), post));
         CLIENT.execute(post, handler);
     }
 
@@ -121,8 +117,7 @@ public class Betable {
 
     private static HttpEntity createAccessTokenAcquisitionEntity(String code,
             String redirectUri) {
-        String params = URLEncodedUtils.format(
-                createAccessTokenAcquisitionParams(code, redirectUri),
+        String params = URLEncodedUtils.format(createAccessTokenAcquisitionParams(code, redirectUri),
                 BetableUrl.ENCODING);
         return new ByteArrayEntity(params.getBytes());
     }
@@ -138,14 +133,12 @@ public class Betable {
 
     private void initializeParams() {
         this.params = new ArrayList<BasicNameValuePair>();
-        this.params.add(new BasicNameValuePair(ACCESS_TOKEN_KEY,
-                this.accessToken));
+        this.params.add(new BasicNameValuePair(ACCESS_TOKEN_KEY, this.accessToken));
     }
 
     private void checkGameId(String passedInGameId) {
         if (passedInGameId == null && this.gameId == null) {
-            throw new IllegalStateException(
-                    "You must either supply a game id in your call or"
+            throw new IllegalStateException("You must either supply a game id in your call or"
                             + " directly on the Betable class.");
         }
     }
