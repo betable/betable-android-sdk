@@ -1,13 +1,9 @@
 package com.betable.http;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
+import android.os.Handler;
+import android.os.Message;
+import android.os.Process;
+import android.util.Log;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
@@ -25,25 +21,18 @@ import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
 
-import android.os.Handler;
-import android.os.Message;
-import android.os.Process;
-import android.util.Log;
+import java.util.concurrent.*;
 
-public class OAuth2HttpClient {
-    protected static final String TAG = OAuth2HttpClient.class.getName();
+/**
+ * Asynchronously execute HTTP requests.
+ *
+ * @author Casey Crites
+ */
+public class HttpClient {
+    protected static final String TAG = HttpClient.class.getName();
 
-    public static final Header JSON_CONTENT_TYPE_HEADER = new BasicHeader(
-            "content-type", "application/json");
-    public static final Header FORM_CONTENT_TYPE_HEADER = new BasicHeader(
-            "content-type", "application/x-www-form-urlencoded");
-    public static final int REQUEST_RESULT = 0x1, REQUEST_ERRED = 0x2;
-
-    public static int CONNECTION_TIMEOUT = 20 * 1000,
-            SOCKET_TIMEOUT = 20 * 1000, SOCKET_BUFFER_SIZE = 8192,
-            HTTPS_PORT = 443;
-
-    private static final int CORE_POOL_SIZE = 1, MAXIMUM_POOL_SIZE = 10,
+    private static final int CORE_POOL_SIZE = 1,
+            MAXIMUM_POOL_SIZE = 10,
             KEEP_ALIVE = 10;
     private static final String USER_AGENT = "Betable/0.1", CHARSET = "UTF-8";
     private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(
@@ -53,7 +42,40 @@ public class OAuth2HttpClient {
 
     private final DefaultHttpClient client;
 
-    public OAuth2HttpClient() {
+    /**
+     * A Content Type header for JSON requests.
+     */
+    public static final Header JSON_CONTENT_TYPE_HEADER = new BasicHeader("content-type", "application/json");
+
+    /**
+     * A Content Type header for form requests.
+     */
+    public static final Header FORM_CONTENT_TYPE_HEADER = new BasicHeader("content-type",
+            "application/x-www-form-urlencoded");
+
+    /**
+     * The response type of a successful request.
+     *
+     * This will be passed back to the requesting {@link android.os.Handler} as {@link android.os.Message#what}.
+     */
+    public static final int REQUEST_RESULT = 0x1;
+
+    /**
+     * The response type of a failed request.
+     *
+     * This will be passed back to the requesting {@link android.os.Handler} as {@link android.os.Message#what}.
+     */
+    public static final int REQUEST_ERRED = 0x2;
+
+    public static int CONNECTION_TIMEOUT = 20 * 1000,
+            SOCKET_TIMEOUT = 20 * 1000,
+            SOCKET_BUFFER_SIZE = 8192,
+            HTTPS_PORT = 443;
+
+    /**
+     * Creates a new instance of {@link HttpClient}.
+     */
+    public HttpClient() {
         final HttpParams params = new BasicHttpParams();
         this.setProtocolParams(params);
         this.setConnectionParams(params);
@@ -62,16 +84,20 @@ public class OAuth2HttpClient {
 
         SchemeRegistry schemeRegistry = this.setUpSchemeRegistry();
 
-        ClientConnectionManager manager = new ThreadSafeClientConnManager(
-                params, schemeRegistry);
+        ClientConnectionManager manager = new ThreadSafeClientConnManager(params, schemeRegistry);
         this.client = new DefaultHttpClient(manager, params);
     }
 
     // actions
 
+    /**
+     * Execute an http request asynchronously.
+     *
+     * @param request The {@link org.apache.http.client.methods.HttpUriRequest} to be executed.
+     * @param handler A {@link android.os.Handler} to be called back to with the response from the server.
+     */
     public void execute(HttpUriRequest request, Handler handler) {
-        BetableFutureTask task = new BetableFutureTask(new BetableCallable(
-                request), handler);
+        BetableFutureTask task = new BetableFutureTask(new BetableCallable(request), handler);
         EXECUTOR.execute(task);
     }
 
@@ -114,9 +140,8 @@ public class OAuth2HttpClient {
         @Override
         public HttpResponse call() throws Exception {
             Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-            Log.d(TAG, this.request.getMethod() + " "
-                    + this.request.getURI().toString());
-            return OAuth2HttpClient.this.client.execute(this.request);
+            Log.d(TAG, this.request.getMethod() + " " + this.request.getURI().toString());
+            return HttpClient.this.client.execute(this.request);
         }
     }
 
@@ -131,8 +156,7 @@ public class OAuth2HttpClient {
 
         final Handler handler;
 
-        public BetableFutureTask(Callable<HttpResponse> callable,
-                Handler handler) {
+        public BetableFutureTask(Callable<HttpResponse> callable, Handler handler) {
             super(callable);
             this.handler = handler;
         }
@@ -154,13 +178,11 @@ public class OAuth2HttpClient {
                     responseType = REQUEST_ERRED;
                 }
             }
-            Log.d(TAG, "status code: "
-                    + response.getStatusLine().getStatusCode());
-            if (response.getStatusLine().getStatusCode() >= 400) {
+
+            if (response == null || response.getStatusLine().getStatusCode() >= 400) {
                 responseType = REQUEST_ERRED;
             }
-            Message message = this.handler
-                    .obtainMessage(responseType, response);
+            Message message = this.handler.obtainMessage(responseType, response);
             message.sendToTarget();
         }
 

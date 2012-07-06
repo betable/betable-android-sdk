@@ -1,13 +1,24 @@
 package com.betable.fragment;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
+import android.app.Activity;
 import android.app.ProgressDialog;
-import android.support.v4.app.*;
-import android.webkit.WebChromeClient;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import com.betable.Betable;
+import com.betable.R;
+import com.betable.http.BetableUrl;
+import com.betable.http.HttpClient;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.ParseException;
@@ -17,33 +28,28 @@ import org.apache.http.util.EntityUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.app.Activity;
-import android.graphics.Bitmap;
-import android.net.Uri;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
-import com.betable.Betable;
-import com.betable.R;
-import com.betable.http.OAuth2HttpClient;
-
-import static com.betable.http.BetableUrl.*;
-
+/**
+ * Betable OAuth login flow.
+ *
+ * @author Casey Crites
+ */
 public class BetableLogin extends Fragment {
     private static final String TAG = "BetableLogin";
 
-    private static final String CODE_KEY = "code", ERROR_KEY = "error",
-            ACCESS_TOKEN_KEY = "access_token", CLIENT_ID_KEY = "client_id",
+    private static final String CODE_KEY = "code",
+            ERROR_KEY = "error",
+            ACCESS_TOKEN_KEY = "access_token",
+            CLIENT_ID_KEY = "client_id",
             CLIENT_SECRET_KEY = "client_secret",
-            REDIRECT_URI_KEY = "redirect_uri", STATE_KEY = "state",
-            RESPONSE_KEY = "response", RESPONSE_VALUE = "code";
+            REDIRECT_URI_KEY = "redirect_uri",
+            STATE_KEY = "state",
+            RESPONSE_KEY = "response",
+            RESPONSE_VALUE = "code";
 
     boolean pageLoaded = false;
     boolean showProgressDialog = false;
@@ -51,11 +57,19 @@ public class BetableLogin extends Fragment {
     ProgressDialog progressDialog;
     WebView browser;
 
-    public static BetableLogin newInstance(String clientId,
-            String clientSecret, String redirectUri) {
+    /**
+     * Create a new instance of {@link BetableLogin}.
+     *
+     * This method should be used instead of the constructor when dynamically adding {@link BetableLogin} to a layout.
+     *
+     * @param clientId A Betable client id.
+     * @param clientSecret A Betable client secret.
+     * @param redirectUri The uri which the OAuth flow will redirect to.
+     * @return An instance of {@link BetableLogin}.
+     */
+    public static BetableLogin newInstance(String clientId, String clientSecret, String redirectUri) {
         BetableLogin login = new BetableLogin();
-        login.setArguments(createInitialArguments(clientId, clientSecret,
-                redirectUri));
+        login.setArguments(createInitialArguments(clientId, clientSecret, redirectUri));
         return login;
     }
 
@@ -72,8 +86,7 @@ public class BetableLogin extends Fragment {
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-            Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         if (this.browser == null) {
             this.browser = (WebView) inflater.inflate(R.layout.betable_login, container, false);
         } else {
@@ -88,7 +101,7 @@ public class BetableLogin extends Fragment {
         super.onActivityCreated(savedInstanceState);
         if (!this.pageLoaded) {
             this.initializeBrowser();
-            this.browser.loadUrl(AUTHORIZATION_URL.getAsString("", this.createAuthQueryParams()));
+            this.browser.loadUrl(BetableUrl.AUTHORIZATION_URL.getAsString("", this.createAuthQueryParams()));
             this.pageLoaded = true;
         } else {
             this.browser.restoreState(savedInstanceState);
@@ -112,10 +125,24 @@ public class BetableLogin extends Fragment {
 
     // actions
 
+    /**
+     * Display an instance of {@link BetableLogin}.
+     *
+     * Use this method when dynamically adding {@link BetableLogin} to a layout.
+     *
+     * @param manager The support library {@link android.support.v4.app.FragmentManager}.
+     * @param layoutId The id of the {@link BetableLogin} layout.
+     * @param tag A String that can be used to find {@link BetableLogin} using the {@link android.support.v4.app.FragmentManager}.
+     */
     public void show(FragmentManager manager, int layoutId, String tag) {
         manager.beginTransaction().add(layoutId, this, tag).commit();
     }
 
+    /**
+     * Dismiss the {@link BetableLogin} fragment.
+     *
+     * Use this method when you want to dismiss a dynamically added instance of {@link BetableLogin}.
+     */
     public void dismiss() {
         this.getActivity().getSupportFragmentManager().beginTransaction().remove(this).commit();
     }
@@ -144,8 +171,7 @@ public class BetableLogin extends Fragment {
         return this.getArguments().getString(key);
     }
 
-    private static Bundle createInitialArguments(String clientId,
-            String clientSecret, String redirectUri) {
+    private static Bundle createInitialArguments(String clientId, String clientSecret, String redirectUri) {
         Bundle arguments = new Bundle();
         arguments.putString(CLIENT_ID_KEY, clientId);
         arguments.putString(CLIENT_SECRET_KEY, clientSecret);
@@ -187,7 +213,9 @@ public class BetableLogin extends Fragment {
             @Override
             public void onPageFinished(WebView view, String url) {
                 Log.d(TAG, "Finished loading " + url);
-                BetableLogin.this.dismissProgressDialog(false);
+                if (!url.startsWith(BetableLogin.this.getArgument(REDIRECT_URI_KEY))) {
+                    BetableLogin.this.dismissProgressDialog(false);
+                }
             }
 
             @Override
@@ -200,7 +228,6 @@ public class BetableLogin extends Fragment {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                Log.d(TAG, "Handling the loading of " + url);
                 view.loadUrl(url);
                 return true;
             }
@@ -210,8 +237,7 @@ public class BetableLogin extends Fragment {
             private void handleAccessDenied(Uri uri) {
                 BetableLogin.this.cleanUp();
                 BetableLogin.this.dismissProgressDialog(false);
-                BetableLogin.this.listener.onFailedLogin(uri
-                        .getQueryParameter(ERROR_KEY));
+                BetableLogin.this.listener.onFailedLogin(uri.getQueryParameter(ERROR_KEY));
             }
 
             private void handleAccessGranted(Uri uri) {
@@ -222,22 +248,18 @@ public class BetableLogin extends Fragment {
                 }
                 String code = uri.getQueryParameter(CODE_KEY);
                 try {
-                    Betable.acquireAccessToken(
-                            BetableLogin.this.getArgument(CLIENT_ID_KEY),
-                            BetableLogin.this.getArgument(CLIENT_SECRET_KEY),
-                            code,
-                            BetableLogin.this.getArgument(REDIRECT_URI_KEY),
-                            BetableLogin.this.accessTokenHandler);
+                    Betable.acquireAccessToken(BetableLogin.this.getArgument(CLIENT_ID_KEY),
+                        BetableLogin.this.getArgument(CLIENT_SECRET_KEY), code,
+                        BetableLogin.this.getArgument(REDIRECT_URI_KEY),
+                        BetableLogin.this.accessTokenHandler);
                 } catch (AuthenticationException e) {
                     Log.e(TAG, e.getMessage());
-                    throw new IllegalStateException("Credentials are invalid.",
-                            e);
+                    throw new IllegalStateException("Credentials are invalid.", e);
                 }
             }
 
             private boolean doesStateMatch(Uri uri) {
-                return BetableLogin.this.getArgument(STATE_KEY).equals(
-                        uri.getQueryParameter(STATE_KEY));
+                return BetableLogin.this.getArgument(STATE_KEY).equals(uri.getQueryParameter(STATE_KEY));
             }
 
         });
@@ -247,17 +269,13 @@ public class BetableLogin extends Fragment {
         try {
             this.listener = (BetableLoginListener) activity;
         } catch (ClassCastException e) {
-            Log.e(TAG, e.getMessage());
             throw new IllegalStateException("Activities implementing " + TAG
-                    + " must implement the " + TAG
-                    + ".BetableLoginListener interface.");
+                + " must implement the " + TAG + ".BetableLoginListener interface.");
         }
     }
 
-    private String parseAccessToken(HttpEntity entity) throws IOException,
-            ParseException, JSONException {
-        JSONObject responseBody = new JSONObject(EntityUtils.toString(entity,
-                ENCODING));
+    private String parseAccessToken(HttpEntity entity) throws IOException, ParseException, JSONException {
+        JSONObject responseBody = new JSONObject(EntityUtils.toString(entity, BetableUrl.ENCODING));
         return responseBody.getString(ACCESS_TOKEN_KEY);
     }
 
@@ -265,8 +283,7 @@ public class BetableLogin extends Fragment {
         String errorString = null;
         BetableLogin.this.dismissProgressDialog(false);
         try {
-            BetableLogin.this.listener.onSuccessfulLogin(BetableLogin.this
-                    .parseAccessToken(response.getEntity()));
+            BetableLogin.this.listener.onSuccessfulLogin(BetableLogin.this.parseAccessToken(response.getEntity()));
         } catch (IOException e) {
             errorString = e.getMessage();
         } catch (JSONException e) {
@@ -311,10 +328,10 @@ public class BetableLogin extends Fragment {
 
             BetableLogin.this.cleanUp();
             switch (resultType) {
-                case OAuth2HttpClient.REQUEST_RESULT:
+                case HttpClient.REQUEST_RESULT:
                     BetableLogin.this.handleSuccessfulRequest(response);
                     break;
-                case OAuth2HttpClient.REQUEST_ERRED:
+                case HttpClient.REQUEST_ERRED:
                     BetableLogin.this.handleFailedRequest(response);
                     break;
             }
@@ -323,9 +340,24 @@ public class BetableLogin extends Fragment {
 
     // interfaces
 
+    /**
+     * Listen for {@link BetableLogin} results.
+     *
+     * Every activity that displays BetableLogin must implement this interface.
+     */
     public interface BetableLoginListener {
+        /**
+         * Called when {@link BetableLogin} finishes successfully.
+         *
+         * @param accessToken A Betable supplied access token.
+         */
         public void onSuccessfulLogin(String accessToken);
 
+        /**
+         * Called when {@link BetableLogin} fails.
+         *
+         * @param reason A String attempting to explain why {@link BetableLogin} failed.
+         */
         public void onFailedLogin(String reason);
     }
 
