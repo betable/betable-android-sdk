@@ -47,7 +47,7 @@ It can be instantiated one of two ways:
 
 1. With an access token
 
-    Betable betable = new Betable(accessToken);
+        Betable betable = new Betable(accessToken);
 
 1. Or empty
 

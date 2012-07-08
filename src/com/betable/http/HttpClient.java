@@ -20,6 +20,7 @@ import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.util.EntityUtils;
 
 import java.util.concurrent.*;
 
@@ -166,8 +167,7 @@ public class HttpClient {
                 }
             }
 
-            Message message = this.handler.obtainMessage(this.requestType, response);
-            message.sendToTarget();
+            Message.obtain(this.handler, this.requestType, response).sendToTarget();
         }
 
     }
