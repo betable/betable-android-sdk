@@ -27,13 +27,6 @@ import java.util.List;
 @SuppressWarnings("unchecked")
 public class Betable {
 
-    /**
-     * The available Betable economies.
-     */
-    public enum Economy {
-        REAL, SANDBOX
-    }
-
     private static final HttpClient CLIENT = new HttpClient();
 
     private Economy economy = Economy.SANDBOX;
@@ -44,6 +37,48 @@ public class Betable {
      * Query string key for the Betable access token.
      */
     public static final String ACCESS_TOKEN_KEY = "access_token";
+
+    /**
+     * int indicating a request is a user account request.
+     *
+     * This will be passed back to your handler so you can easily differentiate between requests.
+     */
+    public static final int USER_REQUEST = 0x1;
+
+    /**
+     * int indicating a request is a user wallet request.
+     *
+     * This will be passed back to your handler so you can easily differentiate between requests.
+     */
+    public static final int WALLET_REQUEST = 0x2;
+
+    /**
+     * int indicating a request is a bet request.
+     *
+     * This will be passed back to your handler so you can easily differentiate between requests.
+     */
+    public static final int BET_REQUEST = 0x3;
+
+    /**
+     * int indicating a request is a can-i-gamble request.
+     *
+     * This will be passed back to your handler so you can easily differentiate between requests.
+     */
+    public static final int GAMBLE_REQUEST = 0x4;
+
+    /**
+     * int indicating a request is an authorization request.
+     *
+     * This will be passed back to your handler so you can easily differentiate between requests.
+     */
+    public static final int AUTH_REQUEST = 0x5;
+
+    /**
+     * The available Betable economies.
+     */
+    public enum Economy {
+        REAL, SANDBOX
+    }
 
     /**
      * Creates a new instance of {@link Betable} with the access token set.
@@ -131,7 +166,7 @@ public class Betable {
      */
     public void getUser(Handler handler) {
         HttpGet get = new HttpGet(BetableUrl.USER_URL.get("", this.getDefaultParams()));
-        CLIENT.execute(get, handler);
+        CLIENT.execute(get, handler, USER_REQUEST);
     }
 
     /**
@@ -143,7 +178,7 @@ public class Betable {
      */
     public void getUserWallet(Handler handler) {
         HttpGet get = new HttpGet(BetableUrl.WALLET_URL.get("", this.getDefaultParams()));
-        CLIENT.execute(get, handler);
+        CLIENT.execute(get, handler, WALLET_REQUEST);
     }
 
     /**
@@ -176,7 +211,7 @@ public class Betable {
         this.addEconomyToBody(body);
         post.setEntity(new ByteArrayEntity(body.toString().getBytes()));
         post.addHeader(HttpClient.JSON_CONTENT_TYPE_HEADER);
-        CLIENT.execute(post, handler);
+        CLIENT.execute(post, handler, BET_REQUEST);
     }
 
     /**
@@ -189,7 +224,7 @@ public class Betable {
         HttpGet get = new HttpGet(BetableUrl.CAN_I_GAMBLE_URL.get(
             new String[] { String.valueOf(location.getLatitude()), String.valueOf(location.getLongitude()) },
             this.getDefaultParams()));
-        CLIENT.execute(get, handler);
+        CLIENT.execute(get, handler, GAMBLE_REQUEST);
     }
 
     // static requests
@@ -212,7 +247,7 @@ public class Betable {
         post.setEntity(createAccessTokenAcquisitionEntity(code, redirectUri));
         post.addHeader(HttpClient.FORM_CONTENT_TYPE_HEADER);
         post.addHeader(new BasicScheme().authenticate(new UsernamePasswordCredentials(clientId, clientSecret), post));
-        CLIENT.execute(post, handler);
+        CLIENT.execute(post, handler, AUTH_REQUEST);
     }
 
     // helpers

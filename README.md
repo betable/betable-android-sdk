@@ -59,7 +59,7 @@ It can be instantiated one of two ways:
 
 Once you have your instance of Betable, you can start making API calls
 
-    betable.getUserWallet(new Handler() { ... });
+    betable.getUserWallet(this.somehandler);
 
 Betable will handle all the threading for you and return a message to your handler when it's done. A possible
 (contrived) implementation of your Handler may look like this
@@ -67,15 +67,22 @@ Betable will handle all the threading for you and return a message to your handl
     new Handler() {
         @Override
         public void handleMessage(Message message) {
-            int responseType = message.what;
+            int requestType = message.what;
             HttpResponse response = (HttpResponse) message.response;
 
-            try {
-                Log.d("Some Awesome Tag", EntityUtils.toString(response.getEntity()));
-            } catch (JSONException e) {
-            } catch (IOException e) {
+            switch(requestType) {
+                case Betable.USER_REQUEST:
+                    handleUserResponse(response);
+                    break;
+                case Betable.WALLET_REQUEST:
+                    handleWalletResponse(response);
+                    break;
             }
+
         }
     }
 
-Hopefully you'll do something more useful, though.
+**NOTE** Remember that Handler's won't survive screen rotations, so make sure you keep your Handler safe by passing it to
+back to your Activity by returning it in activity.onRetainCustomNonConfigurationInstance() and retrieving it using
+activity.getLastCustomNonConfigurationInstance(). If that seems like a lot of work, you can create your handler on
+some abstract class and access it there.

@@ -53,20 +53,6 @@ public class HttpClient {
     public static final Header FORM_CONTENT_TYPE_HEADER = new BasicHeader("content-type",
             "application/x-www-form-urlencoded");
 
-    /**
-     * The response type of a successful request.
-     *
-     * This will be passed back to the requesting {@link android.os.Handler} as {@link android.os.Message#what}.
-     */
-    public static final int REQUEST_RESULT = 0x1;
-
-    /**
-     * The response type of a failed request.
-     *
-     * This will be passed back to the requesting {@link android.os.Handler} as {@link android.os.Message#what}.
-     */
-    public static final int REQUEST_ERRED = 0x2;
-
     public static int CONNECTION_TIMEOUT = 20 * 1000,
             SOCKET_TIMEOUT = 20 * 1000,
             SOCKET_BUFFER_SIZE = 8192,
@@ -95,9 +81,10 @@ public class HttpClient {
      *
      * @param request The {@link org.apache.http.client.methods.HttpUriRequest} to be executed.
      * @param handler A {@link android.os.Handler} to be called back to with the response from the server.
+     * @param requestType An int defined in {@link com.betable.Betable} describing what kind of request this is.
      */
-    public void execute(HttpUriRequest request, Handler handler) {
-        BetableFutureTask task = new BetableFutureTask(new BetableCallable(request), handler);
+    public void execute(HttpUriRequest request, Handler handler, int requestType) {
+        BetableFutureTask task = new BetableFutureTask(new BetableCallable(request), handler, requestType);
         EXECUTOR.execute(task);
     }
 
@@ -155,16 +142,17 @@ public class HttpClient {
     static class BetableFutureTask extends FutureTask<HttpResponse> {
 
         final Handler handler;
+        final int requestType;
 
-        public BetableFutureTask(Callable<HttpResponse> callable, Handler handler) {
+        public BetableFutureTask(Callable<HttpResponse> callable, Handler handler, int requestType) {
             super(callable);
             this.handler = handler;
+            this.requestType = requestType;
         }
 
         @Override
         protected void done() {
             HttpResponse response = null;
-            int responseType = REQUEST_RESULT;
             String errorString = null;
             try {
                 response = this.get();
@@ -175,14 +163,10 @@ public class HttpClient {
             } finally {
                 if (errorString != null) {
                     Log.e(TAG, errorString);
-                    responseType = REQUEST_ERRED;
                 }
             }
 
-            if (response == null || response.getStatusLine().getStatusCode() >= 400) {
-                responseType = REQUEST_ERRED;
-            }
-            Message message = this.handler.obtainMessage(responseType, response);
+            Message message = this.handler.obtainMessage(this.requestType, response);
             message.sendToTarget();
         }
 

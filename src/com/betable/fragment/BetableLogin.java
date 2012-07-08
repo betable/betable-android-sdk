@@ -161,8 +161,8 @@ public class BetableLogin extends Fragment {
     }
 
     private void dismissProgressDialog(boolean restartDialogOnRecreate) {
-        this.showProgressDialog = restartDialogOnRecreate;
         if (this.progressDialog != null && this.progressDialog.isShowing()) {
+            this.showProgressDialog = restartDialogOnRecreate;
             this.progressDialog.dismiss();
         }
     }
@@ -191,6 +191,7 @@ public class BetableLogin extends Fragment {
 
     private void initializeBrowser() {
         this.browser.getSettings().setJavaScriptEnabled(true);
+        this.browser.getSettings().setUseWideViewPort(true);
 
         this.browser.setWebViewClient(new WebViewClient() {
 
@@ -213,6 +214,7 @@ public class BetableLogin extends Fragment {
             @Override
             public void onPageFinished(WebView view, String url) {
                 Log.d(TAG, "Finished loading " + url);
+                view.requestFocus();
                 if (!url.startsWith(BetableLogin.this.getArgument(REDIRECT_URI_KEY))) {
                     BetableLogin.this.dismissProgressDialog(false);
                 }
@@ -323,17 +325,17 @@ public class BetableLogin extends Fragment {
 
         @Override
         public void handleMessage(Message message) {
-            int resultType = message.what;
+            if (message.obj == null) {
+                BetableLogin.this.handleFailedRequest(null);
+                return;
+            }
             HttpResponse response = (HttpResponse) message.obj;
 
             BetableLogin.this.cleanUp();
-            switch (resultType) {
-                case HttpClient.REQUEST_RESULT:
-                    BetableLogin.this.handleSuccessfulRequest(response);
-                    break;
-                case HttpClient.REQUEST_ERRED:
-                    BetableLogin.this.handleFailedRequest(response);
-                    break;
+            if (response.getStatusLine().getStatusCode() >= 400) {
+                BetableLogin.this.handleFailedRequest(response);
+            } else {
+                BetableLogin.this.handleSuccessfulRequest(response);
             }
         }
     };
