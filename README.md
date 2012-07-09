@@ -2,6 +2,22 @@
 
 Betable Android SDK
 
+## Adding to your project
+
+Clone this repo and add it as a library to your project. Maven support will be added soon.
+
+### Dependencies
+
+* android-support-v4.jar
+
+### Permissions
+
+* android.permission.INTERNET
+* android.permission.ACCESS_COARSE_LOCATION
+
+**NOTE** The location permission isn't technically required for the library, but the can-i-gamble
+and bet endpoints require a current location for compliance reasons.
+
 ## BetableLogin
 
 The BetableLogin class is a Fragment that will take the user through the Betable OAuth2 login flow.
@@ -59,12 +75,12 @@ It can be instantiated one of two ways:
 
 Once you have your instance of Betable, you can start making API calls
 
-    betable.getUserWallet(this.somehandler);
+    betable.getUserWallet(this.someHandler);
 
 Betable will handle all the threading for you and return a message to your handler when it's done. A possible
 (contrived) implementation of your Handler may look like this
 
-    new Handler() {
+    this.someHandler = new Handler() {
         @Override
         public void handleMessage(Message message) {
             int requestType = message.what;
