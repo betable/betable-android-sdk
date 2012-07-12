@@ -88,11 +88,11 @@ public class BetableLogin extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         if (this.browser == null) {
-            this.browser = (WebView) inflater.inflate(R.layout.betable_login, container, false);
+            this.browser = new WebView();
         } else {
             ((ViewGroup)this.browser.getParent()).removeView(this.browser);
-            this.browser.setLayoutParams(container.getLayoutParams());
         }
+        this.browser.setLayoutParams(container.getLayoutParams());
         return this.browser;
     }
 
@@ -131,7 +131,7 @@ public class BetableLogin extends Fragment {
      * Use this method when dynamically adding {@link BetableLogin} to a layout.
      *
      * @param manager The support library {@link android.support.v4.app.FragmentManager}.
-     * @param layoutId The id of the {@link BetableLogin} layout.
+     * @param layoutId The id of the container layout.
      * @param tag A String that can be used to find {@link BetableLogin} using the {@link android.support.v4.app.FragmentManager}.
      */
     public void show(FragmentManager manager, int layoutId, String tag) {

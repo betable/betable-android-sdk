@@ -80,4 +80,12 @@
     <!-- version-tag: 1 -->
     <import file="${sdk.dir}/tools/ant/build.xml" />
 
+    <property file="version"/>
+
+    <target name="jar">
+        <jar destfile="bin/betable-android-${betable.version}.jar" basedir="${classes.dir}">
+            <include name="com/**"/>
+        </jar>
+    </target>
+
 </project>

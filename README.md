@@ -4,7 +4,20 @@ Betable Android SDK
 
 ## Adding to your project
 
-Clone this repo and add it as a library to your project. Maven support will be added soon.
+The easiest and best way is to clone this repo and add it to your project as a library. That way,
+if things don't work quite the way you expect, you can modify them.
+
+### Jar
+
+Head to the downloads section to grab the jar.
+
+If you want to build the jar yourself, make sure your local.properties file has the property classes.dir set to
+the directory where your IDE (or whatever you use) compiles the betable code, then from the betable-android
+directory, type:
+
+    ant jar
+
+and you'll find the jar in the bin/ directory.
 
 ### Dependencies
 
