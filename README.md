@@ -59,7 +59,7 @@ BetableLogin can be added to your Activity in two ways:
 1. Created dynamically at runtime
 
         this.betableLogin = BetableLogin.newInstance(clientId, clientSecret, redirectUri);
-        this.betableLogin.show(this.getSupportFragmentManager(), betableLoginLayoutId, betableLoginTag);
+        this.betableLogin.show(this.getSupportFragmentManager(), containerLayoutId, betableLoginTag);
 
    and dismissed
 
