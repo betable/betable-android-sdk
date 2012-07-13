@@ -85,6 +85,7 @@
     <target name="jar">
         <jar destfile="bin/betable-android-${betable.version}.jar" basedir="${classes.dir}">
             <include name="com/**"/>
+            <exclude name="**/BuildConfig.class" />
         </jar>
     </target>
 

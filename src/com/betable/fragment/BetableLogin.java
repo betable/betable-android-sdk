@@ -16,7 +16,6 @@ import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import com.betable.Betable;
-import com.betable.R;
 import com.betable.http.BetableUrl;
 import com.betable.http.HttpClient;
 import org.apache.http.HttpEntity;
@@ -88,7 +87,7 @@ public class BetableLogin extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         if (this.browser == null) {
-            this.browser = new WebView();
+            this.browser = new WebView(this.getActivity());
         } else {
             ((ViewGroup)this.browser.getParent()).removeView(this.browser);
         }
